@@ -97,3 +97,22 @@ def get_ai_move(board, difficulty):
         best_move = random.choice(legal_moves)
 
     return best_move
+
+def evaluate_move_quality(board, move):
+    val_before = minimax(board, 2, -float('inf'), float('inf'), board.turn == chess.WHITE)
+
+    board.push(move)
+    val_after = minimax(board, 2, -float('inf'), float('inf'), board.turn == chess.WHITE)
+    board.pop()
+
+    diff = val_after - val_before
+    if not board.turn == chess.WHITE:
+        diff = -diff
+
+    if diff >= 50:
+        return "great"
+    elif diff <= -200:
+        return "blunder"
+    elif diff <= -50:
+        return "mistake"
+    return "good"
