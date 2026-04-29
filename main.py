@@ -39,38 +39,49 @@ def main():
     state = "menu"
     current_game = None
 
-    btn_w = 350
-    btn_h = 60
-    btn_x = sw // 2 - btn_w // 2
+    btn_w = 260
+    btn_h = 50
+    btn_x = 20  # Sidebar offset
 
     menu_btns = {
-        "pvp": Button(btn_x, sh//2 - 100, btn_w, btn_h, "Play vs Friend", font_main, (70,130,180), (100,160,210)),
-        "ai": Button(btn_x, sh//2 - 20, btn_w, btn_h, "Play vs AI", font_main, (70,180,130), (100,210,160)),
-        "history": Button(btn_x, sh//2 + 60, btn_w, btn_h, "Match History", font_main, (180,180,70), (210,210,100)),
-        "quit": Button(btn_x, sh//2 + 140, btn_w, btn_h, "Quit", font_main, (180,70,70), (210,100,100))
+        "pvp": Button(btn_x, 200, btn_w, btn_h, "Play vs Friend", font_small, (70,130,180), (100,160,210)),
+        "ai": Button(btn_x, 260, btn_w, btn_h, "Play vs AI", font_small, (70,180,130), (100,210,160)),
+        "history": Button(btn_x, 320, btn_w, btn_h, "Match History", font_small, (180,180,70), (210,210,100)),
+        "quit": Button(btn_x, 380, btn_w, btn_h, "Quit", font_small, (180,70,70), (210,100,100))
     }
 
+    btn_continue = Button(btn_x, 440, btn_w, btn_h, "Continue Game", font_small, (200,100,200), (230,130,230))
+
+    panel_x = 350
+    panel_w = 400
+
+    import chess
+    ai_color_selected = chess.WHITE
+
     ai_btns = {
-        "easy": Button(btn_x, sh//2 - 60, btn_w, btn_h, "Easy", font_main, (70,180,130), (100,210,160)),
-        "med": Button(btn_x, sh//2 + 20, btn_w, btn_h, "Medium", font_main, (180,180,70), (210,210,100)),
-        "hard": Button(btn_x, sh//2 + 100, btn_w, btn_h, "Hard", font_main, (180,70,70), (210,100,100)),
-        "back": Button(50, 50, 150, 50, "Back", font_small, (100,100,100), (130,130,130))
+        "easy": Button(panel_x, sh//2 - 20, panel_w, btn_h, "Easy", font_main, (70,180,130), (100,210,160)),
+        "med": Button(panel_x, sh//2 + 60, panel_w, btn_h, "Medium", font_main, (180,180,70), (210,210,100)),
+        "hard": Button(panel_x, sh//2 + 140, panel_w, btn_h, "Hard", font_main, (180,70,70), (210,100,100))
+    }
+
+    ai_color_btns = {
+        "white": Button(panel_x, sh//2 - 100, panel_w//2 - 10, btn_h, "Play White", font_small, (150,150,150), (180,180,180), (0,0,0)),
+        "black": Button(panel_x + panel_w//2 + 10, sh//2 - 100, panel_w//2 - 10, btn_h, "Play Black", font_small, (50,50,50), (80,80,80))
     }
 
     pvp_btns = {
-        "local": Button(btn_x, sh//2 - 60, btn_w, btn_h, "Local (Same PC)", font_main, (70,130,180), (100,160,210)),
-        "lan_host": Button(btn_x, sh//2 + 20, btn_w, btn_h, "Host LAN Game", font_main, (70,180,130), (100,210,160)),
-        "lan_join": Button(btn_x, sh//2 + 100, btn_w, btn_h, "Join LAN Game", font_main, (180,180,70), (210,210,100)),
-        "back": Button(50, 50, 150, 50, "Back", font_small, (100,100,100), (130,130,130))
+        "local": Button(panel_x, sh//2 - 100, panel_w, btn_h, "Local (Same PC)", font_main, (70,130,180), (100,160,210)),
+        "lan_host": Button(panel_x, sh//2 - 20, panel_w, btn_h, "Host LAN Room", font_main, (70,180,130), (100,210,160)),
+        "lan_join": Button(panel_x, sh//2 + 60, panel_w, btn_h, "Browse LAN Rooms", font_main, (180,180,70), (210,210,100))
     }
 
-    ip_input = InputBox(btn_x, sh//2 + 200, btn_w, 50, font_main, '127.0.0.1')
+    room_input = InputBox(panel_x, sh//2 + 140, panel_w, 50, font_main, '', 'Enter Room Name...')
 
-    hist_btns = {
-        "back": Button(50, 50, 150, 50, "Back", font_small, (100,100,100), (130,130,130))
-    }
-
-    btn_continue = Button(btn_x, sh//2 - 180, btn_w, btn_h, "Continue Game", font_main, (200,100,200), (230,130,230))
+    from ui import ScrollableList
+    import network
+    discovery_net = network.ChessNetwork()
+    room_list = ScrollableList(panel_x, sh//2 - 40, panel_w, 200, font_small)
+    refresh_btn = Button(panel_x, sh//2 + 180, panel_w, 50, "Refresh", font_small, (70,130,180), (100,160,210))
 
     while True:
         mouse_pos = pygame.mouse.get_pos()
@@ -86,15 +97,15 @@ def main():
             else:
                 draw_text(screen, "Open Chess", font_main, (255,255,255), 150, 90)
 
+            for k, b in menu_btns.items(): b.update(mouse_pos)
+            if has_saved: btn_continue.update(mouse_pos)
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
 
-            if state == "menu":
-                for k, b in menu_btns.items(): b.update(mouse_pos)
-                if has_saved: btn_continue.update(mouse_pos)
-
+            if state != "game":
                 if menu_btns["pvp"].handle_event(event): state = "pvp_menu"
                 elif menu_btns["ai"].handle_event(event): state = "ai_menu"
                 elif menu_btns["history"].handle_event(event): state = "history"
@@ -105,38 +116,54 @@ def main():
                     current_game = GameScreen(screen, saved["mode"], saved.get("difficulty", 1), load_saved=True)
                     state = "game"
 
-            elif state == "pvp_menu":
+            if state == "pvp_menu":
                 for k, b in pvp_btns.items(): b.update(mouse_pos)
-                ip_input.handle_event(event)
+                room_input.handle_event(event)
 
-                if pvp_btns["back"].handle_event(event): state = "menu"
-                elif pvp_btns["local"].handle_event(event):
+                if pvp_btns["local"].handle_event(event):
                     current_game = GameScreen(screen, "pvp")
                     state = "game"
                 elif pvp_btns["lan_host"].handle_event(event):
-                    current_game = GameScreen(screen, "lan", is_lan_server=True)
+                    room_name = room_input.text if room_input.text else "Player's Room"
+                    current_game = GameScreen(screen, "lan", is_lan_server=True, lan_ip=room_name)
                     state = "game"
                 elif pvp_btns["lan_join"].handle_event(event):
-                    current_game = GameScreen(screen, "lan", is_lan_server=False, lan_ip=ip_input.text)
+                    state = "lan_browse"
+                    discovery_net.start_discovery()
+
+            elif state == "lan_browse":
+                refresh_btn.update(mouse_pos)
+
+                if refresh_btn.handle_event(event):
+                    room_list.items.clear()
+                    for ip, name in discovery_net.get_rooms().items():
+                        room_list.add_item(f"{name} ({ip})", ip)
+
+                joined_ip = room_list.handle_event(event)
+                if joined_ip:
+                    discovery_net.close()
+                    discovery_net = network.ChessNetwork()
+                    current_game = GameScreen(screen, "lan", is_lan_server=False, lan_ip=joined_ip)
                     state = "game"
 
             elif state == "ai_menu":
                 for k, b in ai_btns.items(): b.update(mouse_pos)
+                for k, b in ai_color_btns.items(): b.update(mouse_pos)
 
-                if ai_btns["back"].handle_event(event): state = "menu"
-                elif ai_btns["easy"].handle_event(event):
-                    current_game = GameScreen(screen, "ai", 1)
+                if ai_color_btns["white"].handle_event(event):
+                    ai_color_selected = chess.WHITE
+                elif ai_color_btns["black"].handle_event(event):
+                    ai_color_selected = chess.BLACK
+
+                if ai_btns["easy"].handle_event(event):
+                    current_game = GameScreen(screen, "ai", 1, player_color=ai_color_selected)
                     state = "game"
                 elif ai_btns["med"].handle_event(event):
-                    current_game = GameScreen(screen, "ai", 2)
+                    current_game = GameScreen(screen, "ai", 2, player_color=ai_color_selected)
                     state = "game"
                 elif ai_btns["hard"].handle_event(event):
-                    current_game = GameScreen(screen, "ai", 3)
+                    current_game = GameScreen(screen, "ai", 3, player_color=ai_color_selected)
                     state = "game"
-
-            elif state == "history":
-                hist_btns["back"].update(mouse_pos)
-                if hist_btns["back"].handle_event(event): state = "menu"
 
             elif state == "game":
                 res = current_game.handle_event(event)
@@ -144,32 +171,49 @@ def main():
                     state = "menu"
                     current_game = None
 
-        if state == "menu":
-            draw_text(screen, "Welcome to Open Chess", font_title, (255,255,255), sw//2 + 150, 150)
+        if state != "game":
             for k, b in menu_btns.items(): b.draw(screen)
             if has_saved: btn_continue.draw(screen)
 
-        elif state == "pvp_menu":
-            draw_text(screen, "Select Multiplayer Mode", font_title, (255,255,255), sw//2 + 150, 150)
-            for k, b in pvp_btns.items(): b.draw(screen)
-            ip_input.draw(screen)
-            draw_text(screen, "Join IP:", font_small, (200,200,200), btn_x + btn_w//2, sh//2 + 180)
+            if state == "menu":
+                draw_text(screen, "Welcome to Open Chess", font_title, (255,255,255), panel_x + 200, 150)
 
-        elif state == "ai_menu":
-            draw_text(screen, "Select Difficulty", font_title, (255,255,255), sw//2 + 150, 150)
-            for k, b in ai_btns.items(): b.draw(screen)
+            elif state == "pvp_menu":
+                draw_text(screen, "Select Multiplayer Mode", font_title, (255,255,255), panel_x + 200, 150)
+                for k, b in pvp_btns.items(): b.draw(screen)
+                room_input.draw(screen)
 
-        elif state == "history":
-            draw_text(screen, "Match History", font_title, (255,255,255), sw//2 + 150, 100)
-            hist_btns["back"].draw(screen)
-            history = storage.get_history()
-            y = 200
-            if not history:
-                draw_text(screen, "No games played yet.", font_main, (200,200,200), sw//2 + 150, y)
-            for h in reversed(history[-10:]):
-                txt = f"Mode: {h['mode'].upper()} | Result: {h['result']} | Moves: {h['moves_count']}"
-                draw_text(screen, txt, font_main, (220,220,220), sw//2 + 150, y)
-                y += 40
+            elif state == "lan_browse":
+                draw_text(screen, "Available LAN Rooms", font_title, (255,255,255), panel_x + 200, 150)
+
+                # Auto refresh visually
+                if len(discovery_net.get_rooms()) != len(room_list.items):
+                    room_list.items.clear()
+                    for ip, name in discovery_net.get_rooms().items():
+                        room_list.add_item(f"{name} ({ip})", ip)
+
+                room_list.draw(screen)
+                refresh_btn.draw(screen)
+
+            elif state == "ai_menu":
+                draw_text(screen, "Select Difficulty", font_title, (255,255,255), panel_x + 200, 150)
+
+                ai_color_btns["white"].bg_color = (200,200,200) if ai_color_selected == chess.WHITE else (100,100,100)
+                ai_color_btns["black"].bg_color = (100,100,100) if ai_color_selected == chess.BLACK else (40,40,40)
+
+                for k, b in ai_color_btns.items(): b.draw(screen)
+                for k, b in ai_btns.items(): b.draw(screen)
+
+            elif state == "history":
+                draw_text(screen, "Match History", font_title, (255,255,255), panel_x + 200, 100)
+                history = storage.get_history()
+                y = 200
+                if not history:
+                    draw_text(screen, "No games played yet.", font_main, (200,200,200), panel_x + 200, y)
+                for h in reversed(history[-10:]):
+                    txt = f"Mode: {h['mode'].upper()} | Result: {h['result']} | Moves: {h['moves_count']}"
+                    draw_text(screen, txt, font_main, (220,220,220), panel_x + 200, y)
+                    y += 40
 
         elif state == "game":
             current_game.update()
