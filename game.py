@@ -1,8 +1,16 @@
 import pygame
 import chess
 import os
+import sys
 import ai
 import time
+
+def resource_path(relative_path):
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
 
 SQUARE_SIZE = 80
 WIDTH = SQUARE_SIZE * 8
@@ -19,7 +27,7 @@ piece_images = {}
 def load_images():
     pieces = ['bP', 'bR', 'bN', 'bB', 'bQ', 'bK', 'wP', 'wR', 'wN', 'wB', 'wQ', 'wK']
     for p in pieces:
-        path = os.path.join('assets', 'pieces', 'alpha_png', f'{p}.png')
+        path = resource_path(os.path.join('assets', 'pieces', 'alpha_png', f'{p}.png'))
         img = pygame.image.load(path)
         img = pygame.transform.smoothscale(img, (SQUARE_SIZE, SQUARE_SIZE))
         piece_images[p] = img
