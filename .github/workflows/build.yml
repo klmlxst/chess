@@ -5,6 +5,9 @@ on:
     branches:
       - '**'
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
@@ -26,8 +29,12 @@ jobs:
       run: |
         pyinstaller --noconfirm --onefile --windowed --add-data "assets;assets/" --name "Chess" "main.py"
 
-    - name: Upload Artifact
-      uses: actions/upload-artifact@v4
+    - name: Create Release and Upload Asset
+      uses: softprops/action-gh-release@v2
+      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
       with:
-        name: Chess-Windows
-        path: dist/Chess.exe
+        tag_name: latest
+        name: "Latest Windows Build"
+        body: "Automated build of the Desktop Chess application."
+        files: dist/Chess.exe
+        make_latest: true
