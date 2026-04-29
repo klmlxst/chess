@@ -30,7 +30,7 @@ jobs:
         Invoke-WebRequest -Uri "https://github.com/official-stockfish/Stockfish/releases/latest/download/stockfish-windows-x86-64-avx2.zip" -OutFile "stockfish.zip"
         Expand-Archive -Path "stockfish.zip" -DestinationPath "stockfish_ext"
         New-Item -ItemType Directory -Force -Path "assets\engine"
-        Copy-Item -Path "stockfish_ext\stockfish-windows-x86-64-avx2\stockfish-windows-x86-64-avx2.exe" -Destination "assets\engine\stockfish.exe"
+        Get-ChildItem -Path "stockfish_ext" -Recurse -Filter "*.exe" | Select-Object -First 1 | Copy-Item -Destination "assets\engine\stockfish.exe"
 
     - name: Build with PyInstaller
       run: |
