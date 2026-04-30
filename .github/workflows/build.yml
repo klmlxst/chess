@@ -25,6 +25,13 @@ jobs:
         python -m pip install --upgrade pip
         pip install pygame chess pyinstaller
 
+    - name: Download Stockfish
+      run: |
+        Invoke-WebRequest -Uri "https://github.com/official-stockfish/Stockfish/releases/latest/download/stockfish-windows-x86-64-avx2.zip" -OutFile "stockfish.zip"
+        Expand-Archive -Path "stockfish.zip" -DestinationPath "stockfish_ext"
+        New-Item -ItemType Directory -Force -Path "assets\engine"
+        Get-ChildItem -Path "stockfish_ext" -Recurse -Filter "*.exe" | Select-Object -First 1 | Copy-Item -Destination "assets\engine\stockfish.exe"
+
     - name: Build with PyInstaller
       run: |
         pyinstaller --noconfirm --onefile --windowed --add-data "assets;assets/" --name "Chess" "main.py"
