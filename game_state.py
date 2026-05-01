@@ -238,6 +238,7 @@ class GameScreen:
         center = (x + self.sq_size - radius - 4, y + radius + 4)
         color = (128, 128, 128)
         sym = ""
+        font = pygame.font.SysFont("Segoe UI", 16, bold=True)
         if q == "brilliant": color, sym = (26, 184, 172), "!!"
         elif q == "great": color, sym = (92, 142, 168), "!"
         elif q == "best": color, sym = (164, 199, 57), "★"
@@ -246,10 +247,30 @@ class GameScreen:
         elif q == "blunder": color, sym = (220, 50, 50), "??"
 
         if sym:
-            pygame.draw.circle(screen, color, center, radius)
-            txt = FONT_SMALL.render(sym, True, (255,255,255))
-            txt_rect = txt.get_rect(center=center)
-            screen.blit(txt, txt_rect)
+            import pygame.gfxdraw
+            pygame.gfxdraw.aacircle(screen, center[0], center[1], radius, color)
+            pygame.gfxdraw.filled_circle(screen, center[0], center[1], radius, color)
+
+            # Use Pygame shape for 'best' star if char unsupported, otherwise use text
+            if q == "best":
+                star_points = [
+                    (center[0], center[1] - 8),
+                    (center[0] + 2, center[1] - 2),
+                    (center[0] + 8, center[1] - 2),
+                    (center[0] + 3, center[1] + 2),
+                    (center[0] + 5, center[1] + 8),
+                    (center[0], center[1] + 4),
+                    (center[0] - 5, center[1] + 8),
+                    (center[0] - 3, center[1] + 2),
+                    (center[0] - 8, center[1] - 2),
+                    (center[0] - 2, center[1] - 2)
+                ]
+                pygame.gfxdraw.aapolygon(screen, star_points, (255,255,255))
+                pygame.gfxdraw.filled_polygon(screen, star_points, (255,255,255))
+            else:
+                txt = font.render(sym, True, (255,255,255))
+                txt_rect = txt.get_rect(center=center)
+                screen.blit(txt, txt_rect)
 
     def draw(self):
         self.screen.fill((30, 30, 30))
@@ -361,6 +382,7 @@ class GameScreen:
                 self.draw_eval_icon(self.screen, last_q, x, y)
 
         if self.selected_square is not None:
+            import pygame.gfxdraw
             moves = [m for m in self.board.legal_moves if m.from_square == self.selected_square]
             for move in moves:
                 to_sq = move.to_square
@@ -369,8 +391,13 @@ class GameScreen:
                 center = (self.sq_size // 2, self.sq_size // 2)
                 if self.board.piece_at(to_sq):
                     pygame.draw.circle(surface, COLOR_POSSIBLE_MOVE, center, self.sq_size // 2, 5)
+                    # Use aa circles for better drawing where possible, but a thick outline needs multiple radii
+                    for i in range(5):
+                        pygame.gfxdraw.aacircle(surface, center[0], center[1], self.sq_size // 2 - i, COLOR_POSSIBLE_MOVE)
                 else:
-                    pygame.draw.circle(surface, COLOR_POSSIBLE_MOVE, center, self.sq_size // 6)
+                    r_circle = self.sq_size // 6
+                    pygame.gfxdraw.aacircle(surface, center[0], center[1], r_circle, COLOR_POSSIBLE_MOVE)
+                    pygame.gfxdraw.filled_circle(surface, center[0], center[1], r_circle, COLOR_POSSIBLE_MOVE)
                 self.screen.blit(surface, (self.board_offset_x + c * self.sq_size, self.board_offset_y + r * self.sq_size))
 
         if self.game_over:

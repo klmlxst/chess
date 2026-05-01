@@ -20,7 +20,12 @@ def get_ai_move(board, difficulty):
     if not os.path.exists(engine_path):
         return list(board.legal_moves)[0] if list(board.legal_moves) else None
 
-    with chess.engine.SimpleEngine.popen_uci(engine_path) as engine:
+    kwargs = {}
+    if sys.platform == "win32":
+        import subprocess
+        kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+
+    with chess.engine.SimpleEngine.popen_uci(engine_path, **kwargs) as engine:
         limit = chess.engine.Limit(time=0.1)
         if difficulty == 1:
             engine.configure({"Skill Level": 0})
@@ -38,7 +43,12 @@ def evaluate_move_quality(board, move):
     if not os.path.exists(engine_path):
         return "good"
 
-    with chess.engine.SimpleEngine.popen_uci(engine_path) as engine:
+    kwargs = {}
+    if sys.platform == "win32":
+        import subprocess
+        kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+
+    with chess.engine.SimpleEngine.popen_uci(engine_path, **kwargs) as engine:
         info_before = engine.analyse(board, chess.engine.Limit(depth=10))
         score_before = info_before["score"].white().score(mate_score=10000)
 
