@@ -1,4 +1,5 @@
 import pygame
+import pygame.gfxdraw
 import chess
 import os
 import sys
@@ -38,10 +39,11 @@ def piece_to_name(piece):
     return f"{'w' if piece.color == chess.WHITE else 'b'}{piece.symbol().upper()}"
 
 class GameScreen:
-    def __init__(self, screen, mode, difficulty=1, is_lan_server=False, lan_ip=None, load_saved=False, player_color=chess.WHITE):
+    def __init__(self, screen, mode, difficulty=1, is_lan_server=False, lan_ip=None, load_saved=False, player_color=chess.WHITE, time_control=None):
         self.screen = screen
         self.mode = mode
         self.difficulty = difficulty
+        self.time_control = time_control
         self.player_color = player_color
         self.board = chess.Board()
         self.move_history = []
@@ -87,6 +89,10 @@ class GameScreen:
         self.game_over = False
         self.winner_text = ""
         self.history_scroll_y = 0
+
+        self.last_update_ticks = pygame.time.get_ticks()
+        self.time_white = self.time_control * 60 if self.time_control else None
+        self.time_black = self.time_control * 60 if self.time_control else None
         self.ai_thinking = False
 
     def on_net_receive(self, move_uci):
@@ -214,10 +220,42 @@ class GameScreen:
         self.ai_thinking = False
 
     def update(self):
-        if not self.game_over and self.mode == "ai" and self.board.turn != self.player_color and not self.ai_thinking:
-            self.ai_thinking = True
-            import threading
-            threading.Thread(target=self._async_ai_move, daemon=True).start()
+        now = pygame.time.get_ticks()
+        dt = (now - self.last_update_ticks) / 1000.0
+        self.last_update_ticks = now
+
+        if not self.game_over:
+            # Handle Timers
+            if self.time_control is not None and len(self.move_history) > 0:
+                if self.board.turn == chess.WHITE:
+                    self.time_white -= dt
+                    if self.time_white <= 0:
+                        self.time_white = 0
+                        self.game_over = True
+                        if self.board.has_insufficient_material(chess.BLACK):
+                            self.winner_text = "Draw (Timeout vs Insufficient)"
+                            storage.add_to_history("1/2-1/2", self.mode, len(self.move_history))
+                        else:
+                            self.winner_text = "Black wins on time!"
+                            storage.add_to_history("0-1", self.mode, len(self.move_history))
+                        storage.clear_saved_game()
+                else:
+                    self.time_black -= dt
+                    if self.time_black <= 0:
+                        self.time_black = 0
+                        self.game_over = True
+                        if self.board.has_insufficient_material(chess.WHITE):
+                            self.winner_text = "Draw (Timeout vs Insufficient)"
+                            storage.add_to_history("1/2-1/2", self.mode, len(self.move_history))
+                        else:
+                            self.winner_text = "White wins on time!"
+                            storage.add_to_history("1-0", self.mode, len(self.move_history))
+                        storage.clear_saved_game()
+
+            if self.mode == "ai" and self.board.turn != self.player_color and not self.ai_thinking:
+                self.ai_thinking = True
+                import threading
+                threading.Thread(target=self._async_ai_move, daemon=True).start()
 
     def get_screen_coords(self, sq):
         c = chess.square_file(sq)
@@ -238,6 +276,7 @@ class GameScreen:
         center = (x + self.sq_size - radius - 4, y + radius + 4)
         color = (128, 128, 128)
         sym = ""
+        font = pygame.font.SysFont("Segoe UI", 16, bold=True)
         if q == "brilliant": color, sym = (26, 184, 172), "!!"
         elif q == "great": color, sym = (92, 142, 168), "!"
         elif q == "best": color, sym = (164, 199, 57), "★"
@@ -246,10 +285,37 @@ class GameScreen:
         elif q == "blunder": color, sym = (220, 50, 50), "??"
 
         if sym:
-            pygame.draw.circle(screen, color, center, radius)
-            txt = FONT_SMALL.render(sym, True, (255,255,255))
-            txt_rect = txt.get_rect(center=center)
-            screen.blit(txt, txt_rect)
+            pygame.gfxdraw.aacircle(screen, center[0], center[1], radius, color)
+            pygame.gfxdraw.filled_circle(screen, center[0], center[1], radius, color)
+
+            # Use Pygame shape for 'best' star if char unsupported, otherwise use text
+            if q == "best":
+                star_points = [
+                    (center[0], center[1] - 8),
+                    (center[0] + 2, center[1] - 2),
+                    (center[0] + 8, center[1] - 2),
+                    (center[0] + 3, center[1] + 2),
+                    (center[0] + 5, center[1] + 8),
+                    (center[0], center[1] + 4),
+                    (center[0] - 5, center[1] + 8),
+                    (center[0] - 3, center[1] + 2),
+                    (center[0] - 8, center[1] - 2),
+                    (center[0] - 2, center[1] - 2)
+                ]
+                pygame.gfxdraw.aapolygon(screen, star_points, (255,255,255))
+                pygame.gfxdraw.filled_polygon(screen, star_points, (255,255,255))
+            else:
+                txt = font.render(sym, True, (255,255,255))
+                txt_rect = txt.get_rect(center=center)
+                screen.blit(txt, txt_rect)
+
+    def format_time(self, seconds):
+        if seconds is None:
+            return "--:--"
+        secs = int(max(0, seconds))
+        mins = secs // 60
+        secs = secs % 60
+        return f"{mins:02}:{secs:02}"
 
     def draw(self):
         self.screen.fill((30, 30, 30))
@@ -258,42 +324,84 @@ class GameScreen:
         pygame.draw.rect(self.screen, (40, 40, 40), (0, 0, 300, sh))
         self.btn_menu.draw(self.screen)
 
+        if self.time_control is not None:
+            tw_str = self.format_time(self.time_white)
+            tb_str = self.format_time(self.time_black)
+
+            w_timer_y = self.board_offset_y + self.board_size + 20
+            b_timer_y = self.board_offset_y - 60
+
+            if self.flip_board:
+                w_timer_y, b_timer_y = b_timer_y, w_timer_y
+
+            tw_txt = FONT_MAIN.render(tw_str, True, (255, 255, 255) if self.board.turn == chess.WHITE else (150, 150, 150))
+            tb_txt = FONT_MAIN.render(tb_str, True, (255, 255, 255) if self.board.turn == chess.BLACK else (150, 150, 150))
+
+            # Draw timer backgrounds
+            w_bg_color = (80, 80, 80) if self.board.turn == chess.WHITE else (50, 50, 50)
+            b_bg_color = (80, 80, 80) if self.board.turn == chess.BLACK else (50, 50, 50)
+
+            pygame.draw.rect(self.screen, w_bg_color, (self.board_offset_x + self.board_size - 100, w_timer_y, 100, 40), border_radius=5)
+            pygame.draw.rect(self.screen, b_bg_color, (self.board_offset_x + self.board_size - 100, b_timer_y, 100, 40), border_radius=5)
+
+            self.screen.blit(tw_txt, (self.board_offset_x + self.board_size - 90, w_timer_y + 2))
+            self.screen.blit(tb_txt, (self.board_offset_x + self.board_size - 90, b_timer_y + 2))
+
         hist_x = sw - 300
         pygame.draw.rect(self.screen, (40, 40, 40), (hist_x, 0, 300, sh))
-        title = FONT_MAIN.render("Move History", True, (255,255,255))
-        self.screen.blit(title, (hist_x + 20, 20))
+
+        # History Table Header
+        w_header = FONT_SMALL.render("White", True, (255, 255, 255))
+        b_header = FONT_SMALL.render("Black", True, (255, 255, 255))
+        self.screen.blit(w_header, (hist_x + 80, 20))
+        self.screen.blit(b_header, (hist_x + 200, 20))
+
+        if "wQ" in piece_images:
+            wQ_img = pygame.transform.smoothscale(piece_images["wQ"], (24, 24))
+            self.screen.blit(wQ_img, (hist_x + 50, 20))
+        if "bQ" in piece_images:
+            bQ_img = pygame.transform.smoothscale(piece_images["bQ"], (24, 24))
+            self.screen.blit(bQ_img, (hist_x + 170, 20))
 
         # History panel
         hist_surface = pygame.Surface((300, sh - 60), pygame.SRCALPHA)
-        max_scroll = max(0, len(self.move_history) * 35 - (sh - 80))
+        row_count = (len(self.move_history) + 1) // 2
+        max_scroll = max(0, row_count * 35 - (sh - 80))
         self.history_scroll_y = max(-max_scroll, min(0, self.history_scroll_y))
 
         y_off = self.history_scroll_y
-        for i, move_data in enumerate(self.move_history):
+        for i in range(0, len(self.move_history), 2):
             if 0 <= y_off + 35 and y_off <= sh - 60:
-                san = move_data["san"]
-                q = move_data["quality"]
-                captured = move_data["captured"]
+                # Move Number
+                num_txt = FONT_SMALL.render(f"{(i//2) + 1}.", True, (150, 150, 150))
+                hist_surface.blit(num_txt, (10, y_off))
 
-                color = (200,200,200)
-                if q == "pending": color = (100,100,100)
-                elif q == "brilliant": color = (26, 184, 172)
-                elif q == "great": color = (92, 142, 168)
-                elif q == "best": color = (164, 199, 57)
-                elif q == "inaccuracy": color = (245, 196, 60)
-                elif q == "mistake": color = (235, 151, 78)
-                elif q == "blunder": color = (220, 50, 50)
+                # Helper to draw a move cell
+                def draw_move_cell(idx, start_x):
+                    if idx < len(self.move_history):
+                        m = self.move_history[idx]
+                        q = m["quality"]
+                        c = (200,200,200)
+                        if q == "pending": c = (100,100,100)
+                        elif q == "brilliant": c = (26, 184, 172)
+                        elif q == "great": c = (92, 142, 168)
+                        elif q == "best": c = (164, 199, 57)
+                        elif q == "inaccuracy": c = (245, 196, 60)
+                        elif q == "mistake": c = (235, 151, 78)
+                        elif q == "blunder": c = (220, 50, 50)
 
-                txt = FONT_SMALL.render(f"{i + 1}. {san}", True, color)
-                hist_surface.blit(txt, (20, y_off))
+                        txt = FONT_SMALL.render(m["san"], True, c)
+                        hist_surface.blit(txt, (start_x, y_off))
 
-                if captured and captured in piece_images:
-                    img = pygame.transform.smoothscale(piece_images[captured], (24, 24))
-                    img_rect = img.get_rect(topleft=(120, y_off))
-                    hist_surface.blit(img, img_rect)
-                    # Red cross over the captured piece
-                    pygame.draw.line(hist_surface, (220, 50, 50), (120, y_off + 2), (144, y_off + 22), 2)
-                    pygame.draw.line(hist_surface, (220, 50, 50), (144, y_off + 2), (120, y_off + 22), 2)
+                        if m["captured"] and m["captured"] in piece_images:
+                            img = pygame.transform.smoothscale(piece_images[m["captured"]], (18, 18))
+                            img_rect = img.get_rect(topleft=(start_x + 75, y_off + 4))
+                            hist_surface.blit(img, img_rect)
+                            pygame.draw.line(hist_surface, (220, 50, 50), (start_x + 75, y_off + 4), (start_x + 93, y_off + 22), 2)
+                            pygame.draw.line(hist_surface, (220, 50, 50), (start_x + 93, y_off + 4), (start_x + 75, y_off + 22), 2)
+
+                draw_move_cell(i, 45)       # White move
+                draw_move_cell(i + 1, 165)  # Black move
 
             y_off += 35
 
@@ -369,8 +477,13 @@ class GameScreen:
                 center = (self.sq_size // 2, self.sq_size // 2)
                 if self.board.piece_at(to_sq):
                     pygame.draw.circle(surface, COLOR_POSSIBLE_MOVE, center, self.sq_size // 2, 5)
+                    # Use aa circles for better drawing where possible, but a thick outline needs multiple radii
+                    for i in range(5):
+                        pygame.gfxdraw.aacircle(surface, center[0], center[1], self.sq_size // 2 - i, COLOR_POSSIBLE_MOVE)
                 else:
-                    pygame.draw.circle(surface, COLOR_POSSIBLE_MOVE, center, self.sq_size // 6)
+                    r_circle = self.sq_size // 6
+                    pygame.gfxdraw.aacircle(surface, center[0], center[1], r_circle, COLOR_POSSIBLE_MOVE)
+                    pygame.gfxdraw.filled_circle(surface, center[0], center[1], r_circle, COLOR_POSSIBLE_MOVE)
                 self.screen.blit(surface, (self.board_offset_x + c * self.sq_size, self.board_offset_y + r * self.sq_size))
 
         if self.game_over:
