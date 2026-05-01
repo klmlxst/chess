@@ -52,8 +52,9 @@ def main():
 
     btn_continue = Button(btn_x, 440, btn_w, btn_h, "Continue Game", font_small, (200,100,200), (230,130,230))
 
-    panel_x = 350
     panel_w = 400
+    sidebar_w = 300
+    panel_x = sidebar_w + (sw - sidebar_w) // 2 - panel_w // 2
 
     import chess
     ai_color_selected = chess.WHITE
@@ -175,16 +176,18 @@ def main():
             for k, b in menu_btns.items(): b.draw(screen)
             if has_saved: btn_continue.draw(screen)
 
+            center_x = sidebar_w + (sw - sidebar_w) // 2
+
             if state == "menu":
-                draw_text(screen, "Welcome to Open Chess", font_title, (255,255,255), panel_x + 200, 150)
+                draw_text(screen, "Welcome to Open Chess", font_title, (255,255,255), center_x, 150)
 
             elif state == "pvp_menu":
-                draw_text(screen, "Select Multiplayer Mode", font_title, (255,255,255), panel_x + 200, 150)
+                draw_text(screen, "Select Multiplayer Mode", font_title, (255,255,255), center_x, 150)
                 for k, b in pvp_btns.items(): b.draw(screen)
                 room_input.draw(screen)
 
             elif state == "lan_browse":
-                draw_text(screen, "Available LAN Rooms", font_title, (255,255,255), panel_x + 200, 150)
+                draw_text(screen, "Available LAN Rooms", font_title, (255,255,255), center_x, 150)
 
                 # Auto refresh visually
                 if len(discovery_net.get_rooms()) != len(room_list.items):
@@ -196,7 +199,7 @@ def main():
                 refresh_btn.draw(screen)
 
             elif state == "ai_menu":
-                draw_text(screen, "Select Difficulty", font_title, (255,255,255), panel_x + 200, 150)
+                draw_text(screen, "Select Difficulty", font_title, (255,255,255), center_x, 150)
 
                 ai_color_btns["white"].bg_color = (200,200,200) if ai_color_selected == chess.WHITE else (100,100,100)
                 ai_color_btns["black"].bg_color = (100,100,100) if ai_color_selected == chess.BLACK else (40,40,40)
@@ -205,14 +208,14 @@ def main():
                 for k, b in ai_btns.items(): b.draw(screen)
 
             elif state == "history":
-                draw_text(screen, "Match History", font_title, (255,255,255), panel_x + 200, 100)
+                draw_text(screen, "Match History", font_title, (255,255,255), center_x, 100)
                 history = storage.get_history()
                 y = 200
                 if not history:
-                    draw_text(screen, "No games played yet.", font_main, (200,200,200), panel_x + 200, y)
+                    draw_text(screen, "No games played yet.", font_main, (200,200,200), center_x, y)
                 for h in reversed(history[-10:]):
                     txt = f"Mode: {h['mode'].upper()} | Result: {h['result']} | Moves: {h['moves_count']}"
-                    draw_text(screen, txt, font_main, (220,220,220), panel_x + 200, y)
+                    draw_text(screen, txt, font_main, (220,220,220), center_x, y)
                     y += 40
 
         elif state == "game":
